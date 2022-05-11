@@ -9,6 +9,8 @@ The source code is under the `code` directory. The main file is `win_main.cpp` w
 includes setting up the Windows window. The Direct3D initialization work is in
 `d3d.cpp`. The rendering happens in the UpdateAndRender function of `game.cpp`.
 
+Use WASD to pan the camera around. Use the up and down cursory keys to zoom in and out.
+
 
 ## To Build And Run
 
