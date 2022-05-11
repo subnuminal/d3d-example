@@ -46,15 +46,15 @@ static vec4 GetMovementInput(game_input* gameInput) {
         move.y = gameInput->analogLtThumbY;
     } else {
         if (gameInput->panUp.isPressed) {
-            move.y = 0.25f;
+            move.y = 0.5f;
         } else if (gameInput->panDown.isPressed) {
-            move.y = -0.25f;
+            move.y = -0.5f;
         }
 
         if (gameInput->panRight.isPressed) {
-            move.x = 0.25f;
+            move.x = 0.5f;
         } else if (gameInput->panLeft.isPressed) {
-            move.x = -0.25f;
+            move.x = -0.5f;
         }
     }
 
@@ -297,6 +297,7 @@ static gmath::m4x4 CalcWVP(camera c, float cubeRotY, float fovy, float wOverH, f
 
 static gmath::m4x4 CalcDXWVP(camera c, vec3 cubePos, float cubeRotY, float fovy, float wOverH, float n = 1.0f, float f = 1000.0f) {
 
+    // model to world matrix
     DirectX::XMMATRIX dxw = DirectX::XMMatrixIdentity();
 
     if (cubeRotY) {
@@ -305,12 +306,15 @@ static gmath::m4x4 CalcDXWVP(camera c, vec3 cubePos, float cubeRotY, float fovy,
         dxw = DirectX::XMMatrixRotationNormal(yaxis, rads);
     }
 
+    // world to view matrix
     DirectX::FXMVECTOR eye   = DirectX::XMVectorSet(0.0f, 0.0f, c.pos.z + c.dolly, 1.0f);
     DirectX::FXMVECTOR focus = DirectX::XMVectorSet(0.0f, 0.0f, cubePos.z, 1.0f);
     DirectX::FXMVECTOR up    = DirectX::XMVectorSet(0.0f, 1.0f, 0.0f, 1.0f);
-
     DirectX::XMMATRIX dxv = DirectX::XMMatrixLookAtRH(eye, focus, up);
+
+    // view to clip space projection matrix
     DirectX::XMMATRIX dxp = DirectX::XMMatrixPerspectiveFovRH(fovy, wOverH, n, f);
+
     DirectX::XMMATRIX dxwvp = dxw * (dxv * dxp);
 
     // hlsl expects column major so transpose
