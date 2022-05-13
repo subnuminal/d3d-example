@@ -772,31 +772,32 @@ namespace gmath {
         return !notOverlapped;
     }
 
+    // treat as row major
     struct m4x4 {
-        float elems[16];
+        float elems[4][4];
     };
 
     static vec4 ColX(m4x4 m) {
-        vec4 col = {m.elems[0], m.elems[4], m.elems[8], m.elems[12]};
+        vec4 col = {m.elems[0][0], m.elems[1][0], m.elems[2][0], m.elems[3][0]};
         return col;
     }
 
     static vec4 ColY(m4x4 m) {
-        vec4 col = {m.elems[1], m.elems[5], m.elems[9], m.elems[13]};
+        vec4 col = {m.elems[0][1], m.elems[1][1], m.elems[2][1], m.elems[3][1]};
         return col;
     }
 
     static vec4 ColZ(m4x4 m) {
-        vec4 col = {m.elems[2], m.elems[6], m.elems[10], m.elems[14]};
+        vec4 col = {m.elems[0][2], m.elems[1][2], m.elems[2][2], m.elems[3][2]};
         return col;
     }
 
     static vec4 ColW(m4x4 m) {
-        vec4 col = {m.elems[3], m.elems[7], m.elems[11], m.elems[15]};
+        vec4 col = {m.elems[0][3], m.elems[1][3], m.elems[2][3], m.elems[3][3]};
         return col;
     }
 
-    static vec4 ColI(m4x4 m, uint32_t i) {
+    static vec4 Col(m4x4 m, uint32_t i) {
         vec4 col = {0};
 
         switch (i) {
@@ -822,26 +823,26 @@ namespace gmath {
     }
 
     static vec4 RowX(m4x4 m) {
-        vec4 row = {m.elems[0], m.elems[1], m.elems[2], m.elems[3]};
+        vec4 row = {m.elems[0][0], m.elems[0][1], m.elems[0][2], m.elems[0][3]};
         return row;
     }
 
     static vec4 RowY(m4x4 m) {
-        vec4 row = {m.elems[4], m.elems[5], m.elems[6], m.elems[7]};
+        vec4 row = {m.elems[1][0], m.elems[1][1], m.elems[1][2], m.elems[1][3]};
         return row;
     }
 
     static vec4 RowZ(m4x4 m) {
-        vec4 row = {m.elems[8], m.elems[9], m.elems[10], m.elems[11]};
+        vec4 row = {m.elems[2][0], m.elems[2][1], m.elems[2][2], m.elems[2][3]};
         return row;
     }
 
     static vec4 RowW(m4x4 m) {
-        vec4 row = {m.elems[12], m.elems[13], m.elems[14], m.elems[15]};
+        vec4 row = {m.elems[3][0], m.elems[3][1], m.elems[3][2], m.elems[3][3]};
         return row;
     }
 
-    static vec4 RowI(m4x4 m, uint32_t i) {
+    static vec4 Row(m4x4 m, uint32_t i) {
         vec4 row = {0};
 
         switch (i) {
@@ -894,15 +895,15 @@ namespace gmath {
 
     m4x4 operator -(m4x4 L) {
         m4x4 result = {0};
-        vec4 colx = -ColX(L);
-        vec4 coly = -ColY(L);
-        vec4 colz = -ColZ(L);
-        vec4 colw = -ColW(L);
-        result = Cols4x4(colx, coly, colz, colw);
+        for (uint32_t r = 0; r < 4; r++) {
+            for (uint32_t c = 0; c < 4; c++) {
+                result.elems[r][c] = -L.elems[r][c];
+            }
+        }
         return result;
     }
 
-    // post multiplication
+    // post multiplication/column vector
     vec3 operator *(m4x4 L, vec3 R) {
         vec3 result = {0};
         result.x = Dot(RowX(L).xyz, R);
@@ -911,7 +912,7 @@ namespace gmath {
         return result;
     }
 
-    // post multiplication
+    // post multiplication/column vector
     vec4 operator *(m4x4 L, vec4 R) {
         vec4 result = {0};
         result.x = Dot(RowX(L), R);
@@ -921,12 +922,12 @@ namespace gmath {
         return result;
     }
 
-    // left row dot product with right col
+    // dot product left row with right col
     m4x4 operator *(m4x4 L, m4x4 R) {
         m4x4 result = {0};
-        for (uint32_t rIndex = 0; rIndex < 4; rIndex++) { // rows of L
-            for (uint32_t cIndex = 0; cIndex < 4; cIndex++) { // cols of R
-                result.elems[(rIndex * 4) + cIndex] = Dot(RowI(L, rIndex), ColI(R, cIndex));
+        for (uint32_t r = 0; r < 4; r++) {
+            for (uint32_t c = 0; c < 4; c++) {
+                result.elems[r][c] = Dot(Row(L, r), Col(R, c));
             }
         }
         return result;
@@ -936,22 +937,10 @@ namespace gmath {
 
     // NOTE: 
     // - right handed rotation
-    // - col major 
     m4x4 RotMatX(float radians) {
         float c = Cos(radians);
         float s = Sin(radians);
 
-#if 0
-        // left handed
-        m4x4 m = {
-            1,  0, 0, 0,
-            0,  c, s, 0,
-            0,  -s, c, 0,
-            0,  0, 0, 1
-        };
-#endif
-
-        // right handed...
         m4x4 m = {
             1, 0,  0, 0,
             0, c, -s, 0,
@@ -964,22 +953,10 @@ namespace gmath {
 
     // NOTE: 
     // - right handed rotation
-    // - col major 
     m4x4 RotMatY(float radians) {
         float c = Cos(radians);
         float s = Sin(radians);
 
-#if 0
-        // left handed...
-        m4x4 m = {
-            c, 0, -s, 0,
-            0, 1,  0, 0,
-            s, 0,  c, 0,
-            0, 0,  0, 1
-        };
-#endif
-
-        // right handed...
         m4x4 m = {
              c, 0, s, 0,
              0, 1, 0, 0,
@@ -992,22 +969,10 @@ namespace gmath {
 
     // NOTE: 
     // - right handed rotation
-    // - col major 
     m4x4 RotMatZ(float radians) {
         float c = Cos(radians);
         float s = Sin(radians);
 
-#if 0
-        // left handed...
-        m4x4 m =  {
-             c, s, 0, 0,
-            -s, c, 0, 0,
-             0, 0, 1, 0,
-             0, 0, 0, 1
-        };
-
-#endif
-        // right handed...
         m4x4 m = {
             c, -s, 0, 0,
             s,  c, 0, 0,
@@ -1030,6 +995,12 @@ namespace gmath {
     }
 
     // RH, so neg into z
+    vec4 DirZ() {
+        vec4 result = {0.0f, 0.0f, -1.0f, 0.0f};
+        return result;
+    };
+
+    // RH, so neg into z
     m4x4 DirZ4x4() {
         m4x4 result = {
             0.0f, 0.0f, 0.0f, 0.0f,
@@ -1043,10 +1014,10 @@ namespace gmath {
 
     m4x4 Transpose(m4x4 M) {
         m4x4 result = {0};
-        for (uint32_t row = 0; row < 4; row++) {
-            for (uint32_t col = 0; col < 4; col++) {
+        for (uint32_t r = 0; r < 4; r++) {
+            for (uint32_t c = 0; c < 4; c++) {
                 // copy column values of M to row values of result
-                result.elems[(row * 4) + col] = M.elems[(col * 4) + row];
+                result.elems[r][c] = M.elems[c][r];
             }
         }
         return result;
@@ -1055,10 +1026,10 @@ namespace gmath {
     // puts pos + w into last col of m
     m4x4 Translate(m4x4 m, vec3 pos, float w = 1.0f) {
         m4x4 result = m;
-        result.elems[(4 * 0) + 3] = pos.x;
-        result.elems[(4 * 1) + 3] = pos.y;
-        result.elems[(4 * 2) + 3] = pos.z;
-        result.elems[(4 * 3) + 3] = w;
+        result.elems[0][3] = pos.x;
+        result.elems[1][3] = pos.y;
+        result.elems[2][3] = pos.z;
+        result.elems[3][3] = w;
         return result;
     }
 
@@ -1073,8 +1044,8 @@ namespace gmath {
         vec3 coly = gmath::ColY(m).xyz;
         vec3 colz = gmath::ColZ(m).xyz;
         m4x4 result = Rows3x3(colx, coly, colz);
-        vec3 negTransPos = -(result * pos);
-        result = Translate(result, negTransPos);
+        vec3 negPos = -(result * pos);
+        result = Translate(result, negPos);
         return result;
     }
 

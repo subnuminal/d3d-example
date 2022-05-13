@@ -108,21 +108,13 @@ static void InitD3D(HWND window, int32_t w, int32_t h, shader_stage *vertex, sha
     D3D11_RASTERIZER_DESC1 rasterizerDesc = {};
     rasterizerDesc.FillMode = D3D11_FILL_SOLID; 
     rasterizerDesc.FrontCounterClockwise = false; // default
-
-#if 1
     rasterizerDesc.CullMode = D3D11_CULL_BACK;
-#elif 0
-    rasterizerDesc.CullMode = D3D11_CULL_NONE;
-#else
-    rasterizerDesc.CullMode = D3D11_CULL_FRONT;
-#endif
     
     device1->CreateRasterizerState1(&rasterizerDesc, &res->rasterizerState);
 
     D3D11_DEPTH_STENCIL_DESC depthStencilDesc = {};
     depthStencilDesc.DepthEnable = TRUE;
     depthStencilDesc.DepthWriteMask = D3D11_DEPTH_WRITE_MASK_ALL;
-    /* depthStencilDesc.DepthFunc = D3D11_COMPARISON_GREATER; */
     depthStencilDesc.DepthFunc = D3D11_COMPARISON_LESS;
 
     device1->CreateDepthStencilState(&depthStencilDesc, &res->depthStencilState);

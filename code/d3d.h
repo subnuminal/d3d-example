@@ -5,7 +5,6 @@
 #include <d3d11_1.h>
 #include <dxgi1_2.h>
 #include <dxgi1_3.h>
-#include <directxmath.h>
 #include "game_math.h"
 
 // vert values: (3 + 3 + 2 + 3 ) = 11
@@ -21,7 +20,7 @@ struct Quad {
 };
 
 struct Cube {
-    Quad qs[6];
+    QuadVertex vs[8];
 };
 
 const uint32_t shaderBufferSize = 4096;

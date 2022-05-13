@@ -1,14 +1,4 @@
 cbuffer perType   : register(b0) {
-    // column major by default, so:
-    // { 1, 2, 3, 4,
-    //   5, 6, 7, 8,
-    //   ...
-    // }
-    // in code is:
-    // | 1 5 ... |
-    // | 2 6 ... |
-    // | 3 7 ... |
-    // | 4 8 ... |
     matrix wvp;
 }
 
@@ -28,6 +18,7 @@ struct vs_out {
 vs_out vs_main(vs_in input) {
     vs_out output;
 
+    // vector as second arg means treat as column vector
     output.position = mul(wvp, float4(input.position, 1.0f));
     output.color    = float4(input.color, 1.0f);
 

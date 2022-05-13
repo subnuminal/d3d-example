@@ -121,11 +121,9 @@ static void ReadUserInput(game_input *gameInput, platform_input *platInput, int3
     gameInput->pixCoords.y = platInput->mouseY * h;
 }
 
-static float NormCosWave(float freq) {
+static float CosWave(float freq) {
     float radians = freq * gameTimeSecs * 2.0f * PI;
     float cosWave = gmath::Cos(radians);
-    cosWave += 1.0f;
-    cosWave /= 2.0f;
     return cosWave;
 }
 
@@ -144,7 +142,6 @@ static QuadVertex MakeVertex(float x, float y, float z, vec4 col) {
 static Cube MakeCube(vec4 col) {
     Cube c = {0};
 
-    // colors
     vec4 red = {1.0f, 0.0f, 0.0f, 1.0f};
     vec4 green = {0.0f, 1.0f, 0.0f, 1.0f};
     vec4 blue = {0.0f, 0.0f, 1.0f, 1.0f};
@@ -160,10 +157,10 @@ static Cube MakeCube(vec4 col) {
     c.vs[1] = MakeVertex(-x,  y,  z, col);
     c.vs[2] = MakeVertex( x,  y,  z, col);
     c.vs[3] = MakeVertex( x, -y,  z, col);
-    c.vs[4] = MakeVertex(-x, -y, -z, red);
-    c.vs[5] = MakeVertex(-x,  y, -z, green);
-    c.vs[6] = MakeVertex( x,  y, -z, blue);
-    c.vs[7] = MakeVertex( x, -y, -z, yellow);
+    c.vs[0] = MakeVertex(-x, -y, -z, red);
+    c.vs[1] = MakeVertex(-x,  y, -z, green);
+    c.vs[2] = MakeVertex( x,  y, -z, blue);
+    c.vs[3] = MakeVertex( x, -y, -z, yellow);
 
     return c;
 }
@@ -184,31 +181,34 @@ struct camera {
 };
 
 static gmath::m4x4 CalcViewMatrix(camera c) {
+    // view calculations
+    vec3 camPos = c.pos;
+    camPos.xy = c.pan;
+    camPos.z += c.dolly;
 
-    gmath::m4x4 camRotate = gmath::Identity4x4();
-    if (!gmath::Approx0(c.pitch) || !gmath::Approx0(0.0f) ||  !gmath::Approx0(c.yaw)) {
-        vec3 rotRads = gmath::DegsToRadsV(vec3{c.pitch, 0.0f, c.yaw});
-
-        gmath::m4x4 rotAxisX = gmath::RotMatX(rotRads.x);
-        gmath::m4x4 rotAxisY = gmath::RotMatY(rotRads.y);
-        gmath::m4x4 rotAxisZ = gmath::RotMatZ(rotRads.z);
-
-        camRotate = rotAxisX * rotAxisY * rotAxisZ;
+    if (gmath::Approx0(camPos.z)) {
+        camPos.z = gmath::epsilon;
     }
 
-    vec3 translation = vec3{c.pos.x + c.pan.x, c.pos.y + c.pan.y, c.pos.z + c.dolly};
-    gmath::m4x4 camTranslate = gmath::Translate(gmath::Identity4x4(), translation);
+    float rotRadX = gmath::DegsToRads(c.pitch);
+    gmath::m4x4 axisX = gmath::RotMatX(rotRadX);
 
-    // (TR)v
-    gmath::m4x4 camTrans = camTranslate * camRotate;
-    vec4 camPos = gmath::RowW(camTrans);
-    gmath::m4x4 camMat = gmath::CameraTransform(camTrans, camPos.xyz);
+    gmath::m4x4 axisY = gmath::Identity4x4();
 
-    // D3D is LH, so negate coords influencing z pos 
-    camMat.elems[2][0] *= -1.0f;
-    camMat.elems[2][1] *= -1.0f;
-    camMat.elems[2][2] *= -1.0f;
-    camMat.elems[2][3] *= -1.0f;
+    float rotRadZ = gmath::DegsToRads(c.yaw);
+    gmath::m4x4 axisZ = gmath::RotMatZ(rotRadZ);
+
+    gmath::m4x4 axisM = axisX * axisY * axisZ;
+
+    // D3D is LH, so negate z axis 
+    axisM.elems[(4 * 2) + 0] *= -1.0f;
+    axisM.elems[(4 * 2) + 1] *= -1.0f;
+    axisM.elems[(4 * 2) + 2] *= -1.0f;
+    /* axisM.elems[(4 * 2) + 3] *= -1.0f; */
+
+    camPos = axisM * camPos;
+
+    gmath::m4x4 camMat = gmath::CameraTransform(axisM, camPos);
     return camMat;
 }
 
@@ -221,11 +221,10 @@ static gmath::m4x4 PerspectiveProjection(float fovyRads, float wOverH, float n =
 
     // monkeying with numbers
     float zRange = (f-n);
-    float depth = f/zRange;
+    float depth = f/zRange; // may be negative 
     float zOffset = -n * depth;
-    float zCoeff = 1.0f;
+    float zCoeff = 1.0f; // may be negative 
 
-    // TODO: how to avoid potential divide by zeroes during perspective divide?
     gmath::m4x4 perspM = {
         n/halfW, 0.0f,    0.0f,   0.0f, 
         0.0f,    n/halfH, 0.0f,   0.0f, 
@@ -236,11 +235,10 @@ static gmath::m4x4 PerspectiveProjection(float fovyRads, float wOverH, float n =
     return perspM;
 }
 
-static gmath::m4x4 CalcWVP(camera c, vec3 cubePos, float cubeRotY, vec3 cubeScale, float fovy, float wOverH, float n = 1.0f, float f = 1000.0f) {
-
-    gmath::m4x4 worldRotate = gmath::Identity4x4();
-    gmath::m4x4 worldScale = gmath::Identity4x4();
-    gmath::m4x4 worldTranslate = gmath::Translate(gmath::Identity4x4(), cubePos);
+static gmath::m4x4 CalcWVP(camera c, vec3 cubePos, float cubeRotY, float fovy, float wOverH, float n = 1.0f, float f = 1000.0f) {
+    // model to world matrix 
+    gmath::m4x4 wm = gmath::Identity4x4();
+    gmath::m4x4 wt = gmath::Translate(wm, cubePos);
 
     float rotx = 0.0f;
     float roty = cubeRotY;
@@ -249,26 +247,66 @@ static gmath::m4x4 CalcWVP(camera c, vec3 cubePos, float cubeRotY, vec3 cubeScal
     if (!gmath::Approx0(rotx) || !gmath::Approx0(roty) ||  !gmath::Approx0(rotz)) {
         vec3 rotRads = gmath::DegsToRadsV(vec3{rotx, roty, rotz});
 
-        gmath::m4x4 rotAxisX = gmath::RotMatX(rotRads.x);
-        gmath::m4x4 rotAxisY = gmath::RotMatY(rotRads.y);
-        gmath::m4x4 rotAxisZ = gmath::RotMatZ(rotRads.z);
+        gmath::m4x4 rxm = gmath::RotMatX(rotRads.x);
+        gmath::m4x4 rym = gmath::RotMatY(rotRads.y);
+        gmath::m4x4 rzm = gmath::RotMatZ(rotRads.z);
 
-        worldRotate = rotAxisX * rotAxisY * rotAxisZ;
+        wm = rxm * rym * rzm;
+    }
+    
+    wm = wm * wt;
+
+
+    // view matrix
+    gmath::m4x4 vm = CalcViewMatrix(c); 
+
+    // projection matrix
+    gmath::m4x4 pm = PerspectiveProjection(fovy, wOverH);
+
+    // row major (pre mult): vWVP
+    /* gmath::m4x4 wvp = wm * (vm * pm); */
+    // col major (post mult): PVWv 
+    gmath::m4x4 wvp = pm * (vm * wm);
+
+    return wvp;
+}
+
+static gmath::m4x4 CalcDXWVP(camera c, vec3 cubePos, float cubeRotY, float fovy, float wOverH, float n = 1.0f, float f = 1000.0f) {
+
+    // TODO: translate by cubePos
+
+    // model to world matrix
+    DirectX::XMMATRIX dxw = DirectX::XMMatrixIdentity();
+
+    if (cubeRotY) {
+        DirectX::XMVECTOR yaxis = DirectX::XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f);
+        float rads = DirectX::XMConvertToRadians(cubeRotY);
+        dxw = DirectX::XMMatrixRotationNormal(yaxis, rads);
     }
 
-    worldScale.elems[0][0] = cubeScale.x;
-    worldScale.elems[1][1] = cubeScale.y;
-    worldScale.elems[2][2] = cubeScale.z;
+    // world to view matrix
+    DirectX::FXMVECTOR eye   = DirectX::XMVectorSet(0.0f, 0.0f, c.pos.z + c.dolly, 1.0f);
+    DirectX::FXMVECTOR focus = DirectX::XMVectorSet(0.0f, 0.0f, 0.0f, 1.0f);
+    DirectX::FXMVECTOR up    = DirectX::XMVectorSet(0.0f, 1.0f, 0.0f, 1.0f);
+    DirectX::XMMATRIX dxv = DirectX::XMMatrixLookAtRH(eye, focus, up);
 
-    // (TSR)v
-    gmath::m4x4 modelToWorld = worldTranslate * worldScale * worldRotate;
+    // view to clip space projection matrix
+    DirectX::XMMATRIX dxp = DirectX::XMMatrixPerspectiveFovRH(fovy, wOverH, n, f);
 
-    gmath::m4x4 worldToView = CalcViewMatrix(c); 
+    DirectX::XMMATRIX dxwvp = dxw * (dxv * dxp);
 
-    gmath::m4x4 projectToClip = PerspectiveProjection(fovy, wOverH);
+    // hlsl expects column major so transpose
+    dxwvp = DirectX::XMMatrixTranspose(dxwvp);
 
-    // (PVW)v
-    gmath::m4x4 wvp = projectToClip * worldToView * modelToWorld;
+    // copy over to game native matrix struct
+    DirectX::XMFLOAT4X4 t;
+    DirectX::XMStoreFloat4x4(&t, dxwvp);
+    gmath::m4x4 wvp = {
+        t.m[0][0], t.m[0][1], t.m[0][2], t.m[0][3],
+        t.m[1][0], t.m[1][1], t.m[1][2], t.m[1][3], 
+        t.m[2][0], t.m[2][1], t.m[2][2], t.m[2][3], 
+        t.m[3][0], t.m[3][1], t.m[3][2], t.m[3][3] 
+    };
 
     return wvp;
 }
@@ -305,11 +343,12 @@ void UpdateAndRender(resources *res, int32_t w, int32_t h, platform_input* in) {
     float f = 1000.0f;
 
     // cube config
-    static vec3 cubePos = vec3{0.0f, 0.0f, -5.0f};
+    /* float cubeW = 10.0f; */
+    /* float cubeH = 10.0f; */
+    /* float cubeD = 10.0f; */
+    static vec3 cubePos = vec3{-2.0f, -2.0f, -2.0f};
     static float cubeRotY = 0.0f;
-    cubeRotY = 360.0f * NormCosWave(0.2f);
-    vec3 cubeScale = vec3{1.0f, 1.0f, 1.0f};
-    cubeScale *= (1.0f + NormCosWave(0.2f));
+    /* cubeRotY = 180.0f * CosWave(0.2f); */
     vec4 cubeCol = colors::BLACK;
 
     // player input
@@ -329,7 +368,11 @@ void UpdateAndRender(resources *res, int32_t w, int32_t h, platform_input* in) {
 
     BeginTriangles(devCtx1, res);
 
-    gmath::m4x4 wvp = CalcWVP(cam, cubePos, cubeRotY, cubeScale, fovy, wOverH, n, f);
+#if 1
+    gmath::m4x4 wvp = CalcWVP(cam, cubePos, cubeRotY, fovy, wOverH, n, f);
+#else 
+    gmath::m4x4 wvp = CalcDXWVP(cam, cubePos, cubeRotY, fovy, wOverH, n, f);
+#endif
 
     CopyDynamic(devCtx1, res->constantBuffers[CB_TYPE], sizeof(wvp), &wvp);
 
