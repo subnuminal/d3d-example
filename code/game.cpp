@@ -150,8 +150,6 @@ static Cube MakeCube(vec4 col) {
     vec4 blue = {0.0f, 0.0f, 1.0f, 1.0f};
     vec4 yellow = {1.0f, 1.0f, 0.0f, 1.0f};
 
-    vec3 pos = vec3{0.0f, 0.0f, 0.0f};
-
     float x = 0.5f;
     float y = 0.5f;
     float z = 0.5f;
@@ -201,15 +199,15 @@ static gmath::m4x4 CalcViewMatrix(camera c) {
 
     // (TR)v
     gmath::m4x4 camTrans = camTranslate * camRotate;
-    vec4 camPos = gmath::RowW(camTrans);
-    gmath::m4x4 camMat = gmath::CameraTransform(camTrans, camPos.xyz);
+    vec4 camPos = gmath::ColW(camTrans);
+    gmath::m4x4 view = gmath::CameraTransform(camTrans, camPos.xyz);
 
     // D3D is LH, so negate coords influencing z pos 
-    camMat.elems[2][0] *= -1.0f;
-    camMat.elems[2][1] *= -1.0f;
-    camMat.elems[2][2] *= -1.0f;
-    camMat.elems[2][3] *= -1.0f;
-    return camMat;
+    view.elems[2][0] *= -1.0f;
+    view.elems[2][1] *= -1.0f;
+    view.elems[2][2] *= -1.0f;
+    view.elems[2][3] *= -1.0f;
+    return view;
 }
 
 static gmath::m4x4 PerspectiveProjection(float fovyRads, float wOverH, float n = 1.0f, float f = 1000.0f) {
